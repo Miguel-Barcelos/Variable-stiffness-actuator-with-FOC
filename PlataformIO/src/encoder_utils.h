@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-// Declaração da função (o corpo ficará no .cpp ou no final do header)
+// Declaração da função de leitura do AS5600
 uint16_t readRawAngle();
 
 #endif

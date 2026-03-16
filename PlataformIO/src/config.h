@@ -5,9 +5,14 @@
 #define EN_GATE 14
 #define IA_PIN 32
 #define IB_PIN 33
-#define PWM_U 25
-#define PWM_V 26
-#define PWM_W 27
+#define PWM_U 21 // INH_A
+#define PWM_V 22 // INH_B
+#define PWM_W 23 // INH_C
+#define SDA_PIN 25
+#define SCL_PIN 26
+
+// Se o DRV8302 estiver conectado, defina o pino de FAULT para monitorar e resetar
+#define DRIVER_FAULT_PIN 34
 
 // Parâmetros do Sistema
 #define F_CONTROL 10000

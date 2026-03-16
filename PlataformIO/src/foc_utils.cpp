@@ -9,7 +9,7 @@ float calibrar_offset_eletrico(int pares_polos)
 
     // Aplica tensão fixa na Fase A (Duty 30% na Fase A, 0% nas outras)
     // Isso cria um vetor magnético estático [cite: 664]
-    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 30.0);
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 3.0);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0.0);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0.0);
 

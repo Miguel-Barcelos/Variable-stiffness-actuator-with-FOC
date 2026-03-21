@@ -10,6 +10,7 @@
 #define PWM_W 23 // INH_C
 #define SDA_PIN 25
 #define SCL_PIN 26
+#define OC_ADJ 13
 
 // Se o DRV8302 estiver conectado, defina o pino de FAULT para monitorar e resetar
 #define DRIVER_FAULT_PIN 34

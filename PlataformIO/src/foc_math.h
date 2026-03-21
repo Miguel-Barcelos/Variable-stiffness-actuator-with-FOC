@@ -6,12 +6,13 @@
 // Estrutura para organizar os estados do motor
 typedef struct
 {
-    float ia, ib, ic; // Referencial Trifásico (abc)
-    float alpha, beta; // Referencial Estacionário (αβ)
-    float id, iq; // Referencial Rotativo (dq)
-    float id_ref, iq_ref; // Referências de Controle
-    float vd, vq, v_alpha, v_beta; // Sinais de Saída (Tensão)
-    float theta_m, theta_e, omega; // Estado Mecânico
+    float ia, ib, ic;                // Referencial Trifásico (abc)
+    float alpha, beta;               // Referencial Estacionário (αβ)
+    float id, iq;                    // Referencial Rotativo (dq)
+    float id_ref, iq_ref;            // Referências de Controle
+    float vd, vq, v_alpha, v_beta;   // Sinais de Saída (Tensão)
+    float theta_m, theta_e, omega;   // Estado Mecânico
+    float omega_ref, omega_measured; // Controle de Velocidade
 } MotorVars;
 
 // Protótipos das funções profissionais

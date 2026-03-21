@@ -10,6 +10,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include "impedance.h" // Novo arquivo
 
 // Variáveis Globais Compartilhadas
 MotorVars motor;
@@ -26,9 +27,15 @@ PIController pi_iq = {0.05f, 0.02f, 0.0f, 2.0f};
 PIController pi_omega = {0.09f, 0.05f, 0.0f, 0.5f}; // Limite de saída: 0.5A para iq_ref
 
 // Referências de controle
-float id_ref = 0.0f;    // Corrente de fluxo (geralmente 0 para PMSM)
-float iq_ref = 0.0f;   // Corrente de torque (agora calculada pelo controle de velocidade)
-float omega_ref = 0.07f; // Velocidade desejada (rad/s)
+float id_ref = 0.0f;     // Corrente de fluxo (geralmente 0 para PMSM)
+float iq_ref = 0.0f;     // Corrente de torque (agora calculada pelo controle de velocidade)
+float omega_ref = 0.01f; // Velocidade desejada (rad/s)
+
+VirtualImpedance molaVirtual = {
+    0.01f, // K: Rigidez inicial baixa
+    0.1f,  // B: Amortecimento para evitar oscilação
+    0.0f   // theta_set: Posição onde a mola quer ficar (0 rad)
+};
 
 // Offset elétrico obtido na calibração
 float theta_offset = 0.0f;
@@ -68,15 +75,18 @@ void focTask(void *pvParameters)
         float omega_measured = (theta_e - theta_e_prev) / 0.001f;
         theta_e_prev = theta_e;
 
-        // 4. Controle cascata: velocidade -> iq_ref
-        float erro_omega = omega_ref - omega_measured;
-        iq_ref = compute_pi(&pi_omega, erro_omega);
+        // 4. Controle de Impedância Virtual (Mola + Amortecedor)
+        // O torque (Iq) agora depende da posição e da velocidade
+        float iq_impedancia = compute_impedance_torque(&molaVirtual, motor.theta_m, motor.omega_measured);
 
-        // Limitar iq_ref para segurança
-        if (iq_ref > 0.5f)
-            iq_ref = 0.5f;
-        if (iq_ref < -0.5f)
-            iq_ref = -0.5f;
+        // iq_ref agora vem da mola, não mais do PI de velocidade puro
+        iq_ref = iq_impedancia;
+
+        // Limite de segurança (Sempre mantenha isso!)
+        if (iq_ref > 0.6f)
+            iq_ref = 0.6f;
+        if (iq_ref < -0.6f)
+            iq_ref = -0.6f;
 
         // 5. Leitura de correntes
         float ia_adc = (analogRead(IA_PIN) - 2048.0f) * 0.80488f / 1000.0f;
@@ -144,8 +154,8 @@ void debugTask(void *pvParameters)
             }
         }
 
-        Serial.printf("FOC Tick:%lu | omega:%.3f iq_ref:%.3f | id:%.3f iq:%.3f | vd:%.3f vq:%.3f | theta:%.3f | Fault:%d\n",
-                      foc_tick, motor.omega_measured, iq_ref, motor.id, motor.iq, motor.vd, motor.vq, motor.theta_e, fault);
+        Serial.printf("Tick:%lu | Pos:%.2f | Set:%.2f | Iq:%.3f | Vq:%.3f | Fault:%d\n",
+                      foc_tick, motor.theta_m, molaVirtual.theta_set, motor.iq, motor.vq, fault);
     }
 }
 
@@ -232,20 +242,22 @@ void setup()
     pi_iq.Ki = 0.01f;          // Integral iq (reduzido)
     pi_iq.limite_saida = 2.0f; // Limite de saída (reduzido para 2V)
 
-    Serial.println("--- FOC PRONTO ---");
+    // --- ADICIONE ESTAS LINHAS AQUI ---
+    // Lê a posição inicial real do encoder para definir o ponto neutro
+    uint16_t raw_init = readRawAngle();
+    motor.theta_m = (raw_init / 4096.0f) * 2.0f * PI;
+    molaVirtual.theta_set = motor.theta_m;
+
+    Serial.printf("Ponto Neutro definido em: %.4f rad\n", molaVirtual.theta_set);
+    Serial.println("--- FOC PRONTO COM IMPEDÂNCIA ---");
     delay(100);
 
     // ========== CRIAR TASKS ==========
     driver_enabled = true;
     digitalWrite(EN_GATE, HIGH);
 
-    BaseType_t res_foc = xTaskCreatePinnedToCore(focTask, "FOC Task", 4096, NULL, 2, NULL, 1);
-    BaseType_t res_dbg = xTaskCreatePinnedToCore(debugTask, "Debug Task", 4096, NULL, 1, NULL, 0);
-
-    if (res_foc != pdPASS)
-        Serial.println("ERRO: FOC Task");
-    if (res_dbg != pdPASS)
-        Serial.println("ERRO: Debug Task");
+    xTaskCreatePinnedToCore(focTask, "FOC Task", 4096, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(debugTask, "Debug Task", 4096, NULL, 1, NULL, 0);
 }
 
 void loop()

@@ -23,12 +23,12 @@ PIController pi_id = {0.05f, 0.02f, 0.0f, 2.0f};
 PIController pi_iq = {0.05f, 0.02f, 0.0f, 2.0f};
 
 // Controlador PI para velocidade (cascata)
-PIController pi_omega = {0.1f, 0.05f, 0.0f, 0.5f}; // Limite de saída: 0.5A para iq_ref
+PIController pi_omega = {0.09f, 0.05f, 0.0f, 0.5f}; // Limite de saída: 0.5A para iq_ref
 
 // Referências de controle
 float id_ref = 0.0f;    // Corrente de fluxo (geralmente 0 para PMSM)
 float iq_ref = 0.0f;   // Corrente de torque (agora calculada pelo controle de velocidade)
-float omega_ref = 0.5f; // Velocidade desejada (rad/s)
+float omega_ref = 0.07f; // Velocidade desejada (rad/s)
 
 // Offset elétrico obtido na calibração
 float theta_offset = 0.0f;
@@ -40,13 +40,10 @@ volatile uint32_t foc_tick = 0;
 // Implementa loop FOC fechado: Leitura -> Transformadas -> PI -> SVPWM
 void focTask(void *pvParameters)
 {
-    // Ciclo de 1ms (1 kHz) com determinismo via vTaskDelayUntil
     const TickType_t xFrequency = pdMS_TO_TICKS(1);
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
-    // Para cálculo de velocidade (diferenciação)
     static float theta_e_prev = 0.0f;
-    static uint32_t last_tick = 0;
 
     while (true)
     {
@@ -55,40 +52,37 @@ void focTask(void *pvParameters)
         if (!driver_enabled)
             continue;
 
-        // Leitura de posição (encoder AS5600): 0-4095
+        // 1. Leitura de posição mecânica
         uint16_t raw_angle = readRawAngle();
         float theta_m = (raw_angle / 4096.0f) * 2.0f * PI;
 
-        // Cálculo de velocidade (diferenciação simples)
-        float omega_measured = (theta_e - theta_e_prev) / 0.001f; // rad/s
+        // 2. Cálculo do Ângulo Elétrico (Correção do erro de escopo)
+        float theta_e = (theta_m * PARES_POLOS) - theta_offset;
+
+        // Normalizar theta_e entre 0 e 2PI
+        theta_e = fmodf(theta_e, 2.0f * PI);
+        if (theta_e < 0)
+            theta_e += 2.0f * PI;
+
+        // 3. Cálculo de velocidade (Removida a duplicata)
+        float omega_measured = (theta_e - theta_e_prev) / 0.001f;
         theta_e_prev = theta_e;
 
-        // Controle cascata: velocidade -> iq_ref
+        // 4. Controle cascata: velocidade -> iq_ref
         float erro_omega = omega_ref - omega_measured;
         iq_ref = compute_pi(&pi_omega, erro_omega);
-        // Limitar iq_ref para segurança
-        if (iq_ref > 0.5f) iq_ref = 0.5f;
-        if (iq_ref < -0.5f) iq_ref = -0.5f;
 
-        // Cálculo de velocidade (diferenciação simples)
-        float omega_measured = (theta_e - theta_e_prev) / 0.001f; // rad/s
-        theta_e_prev = theta_e;
-
-        // Controle cascata: velocidade -> iq_ref
-        float erro_omega = omega_ref - omega_measured;
-        iq_ref = compute_pi(&pi_omega, erro_omega);
         // Limitar iq_ref para segurança
         if (iq_ref > 0.5f)
             iq_ref = 0.5f;
         if (iq_ref < -0.5f)
             iq_ref = -0.5f;
 
-        // Leitura de correntes (ADC 12 bits)
+        // 5. Leitura de correntes
         float ia_adc = (analogRead(IA_PIN) - 2048.0f) * 0.80488f / 1000.0f;
         float ib_adc = (analogRead(IB_PIN) - 2048.0f) * 0.80488f / 1000.0f;
-        float ic_adc = -(ia_adc + ib_adc);
 
-        // Atualizar estrutura motor com proteção de mutex
+        // Atualizar estrutura motor
         if (xSemaphoreTake(motorMutex, pdMS_TO_TICKS(1)))
         {
             motor.theta_m = theta_m;
@@ -96,31 +90,23 @@ void focTask(void *pvParameters)
             motor.omega_measured = omega_measured;
             motor.ia = ia_adc;
             motor.ib = ib_adc;
-            motor.ic = ic_adc;
+            motor.ic = -(ia_adc + ib_adc);
             xSemaphoreGive(motorMutex);
         }
 
-        // Transformadas: abc -> αβ -> dq
+        // 6. Transformadas e Controle de Corrente
         clarke_transform(&motor);
 
-        float sin_t = sin(theta_e);
-        float cos_t = cos(theta_e);
+        float sin_t = sin(motor.theta_e);
+        float cos_t = cos(motor.theta_e);
         park_transform(&motor, sin_t, cos_t);
 
-        // Controladores PI para correntes dq
-        float erro_id = id_ref - motor.id;
-        float erro_iq = iq_ref - motor.iq;
+        motor.vd = compute_pi(&pi_id, (id_ref - motor.id));
+        motor.vq = compute_pi(&pi_iq, (iq_ref - motor.iq));
 
-        motor.id_ref = id_ref;
-        motor.iq_ref = iq_ref;
-
-        motor.vd = compute_pi(&pi_id, erro_id);
-        motor.vq = compute_pi(&pi_iq, erro_iq);
-
-        // Transformada inversa: dq -> αβ
         inverse_park_clarke(&motor, sin_t, cos_t);
 
-        // SVPWM
+        // 7. Saída
         apply_svpwm(&motor);
 
         foc_tick++;

@@ -10,7 +10,7 @@ typedef struct
     float theta_set; // Posição de equilíbrio da mola
 } VirtualImpedance;
 
-// Calcula a corrente Iq necessária para simular a impedância
+// Calcula a Iq necessária para simular a impedância
 float compute_impedance_torque(VirtualImpedance *imp, float current_theta, float current_omega);
 
 #endif

@@ -16,10 +16,21 @@ void apply_svpwm(MotorVars *m)
     float v_min = std::min({t_a, t_b, t_c});
     float v_offset = (v_max + v_min) * 0.5f;
 
-    // Normalização: 0.0 a 1.0
-    float da_norm = (t_a - v_offset) / VBUS + 0.5f;
-    float db_norm = (t_b - v_offset) / VBUS + 0.5f;
-    float dc_norm = (t_c - v_offset) / VBUS + 0.5f;
+    // Normalizar PRIMEIRO por VBUS/2 (amplitude do vetor)
+    float v_norm = 2.0f / VBUS; // Ganho de normalização
+    float t_a_norm = t_a * v_norm;
+    float t_b_norm = t_b * v_norm;
+    float t_c_norm = t_c * v_norm;
+
+    // Depois centralizar e limitar
+    float v_max_norm = std::max({t_a_norm, t_b_norm, t_c_norm});
+    float v_min_norm = std::min({t_a_norm, t_b_norm, t_c_norm});
+    float v_offset_norm = (v_max_norm + v_min_norm) * 0.5f;
+
+    // Converter para 0-1
+    float da_norm = (t_a_norm - v_offset_norm) * 0.5f + 0.5f;
+    float db_norm = (t_b_norm - v_offset_norm) * 0.5f + 0.5f;
+    float dc_norm = (t_c_norm - v_offset_norm) * 0.5f + 0.5f;
 
     // Conversão: 0-100%, segurança 5-95%
     float da_duty = std::max(5.0f, std::min(95.0f, da_norm * 100.0f));

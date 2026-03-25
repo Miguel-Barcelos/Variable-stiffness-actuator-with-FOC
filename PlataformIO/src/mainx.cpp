@@ -71,47 +71,6 @@ void calibrationTask(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-/*
-// ---------------------- ISR FOC ----------------------
-void IRAM_ATTR onFocTimer()
-{
-    // 1. LEITURA E FILTRAGEM (Onde resolvemos a velocidade)
-    uint16_t raw = readRawAngle();
-    motor.theta_m = (raw / 4096.0f) * 2.0f * PI;
-
-    float delta_theta = motor.theta_m - last_theta_m;
-    if (delta_theta > PI)
-        delta_theta -= 2.0f * PI; // Trata giro completo
-    if (delta_theta < -PI)
-        delta_theta += 2.0f * PI;
-
-    float omega_instantanea = delta_theta * F_CONTROL;
-    omega_filtrado = (alpha_lpf * omega_instantanea) + (1.0f - alpha_lpf) * omega_filtrado;
-    last_theta_m = motor.theta_m;
-    motor.omega = omega_filtrado;
-
-    // 2. CÁLCULO DA RIGIDEZ (Impedância)
-    // O torque da mola virtual vira a referência de corrente iq
-    iq_ref = compute_impedance_torque(&molaVirtual, motor.theta_m, motor.omega); //
-
-    // 3. MATEMÁTICA FOC
-    motor.theta_e = (motor.theta_m * PARES_POLOS) - offset_eletrico;
-    clarke_transform(&motor);                                       //
-    park_transform(&motor, sin(motor.theta_e), cos(motor.theta_e)); //
-
-    // 4. CONTROLADORES PI E SAÍDA
-    // Aqui você usaria o iq_ref calculado pela impedância
-    motor.vd = compute_pi(&pi_id, id_ref - motor.id);
-    motor.vq = compute_pi(&pi_iq, iq_ref - motor.iq);
-
-    inverse_park_clarke(&motor, sin(motor.theta_e), cos(motor.theta_e)); //
-    svpwm_min_max(&motor, VBUS);                                         //
-
-    // Comando final para os pinos PWM (conforme seu config.h)
-    aplicar_pwm_hardware(motor.duty_a, motor.duty_b, motor.duty_c);
-}
-
-*/
 
 // ---------------------- TASK FOC ----------------------
 void focTask(void *pvParameters)
@@ -148,12 +107,33 @@ void focTask(void *pvParameters)
         if (delta < -PI)
             delta += 2.0f * PI;
 
-        float omega_measured = delta / 0.001f;
+        //float omega_measured = delta / 0.001f;
         //omega_filtered = 0.99f * omega_filtered + 0.01f * omega_measured;
-        static float omega_buffer[16];
+
+        const float DT_CONTROL = 0.001f; // 1ms = 1000Hz
+        float omega_measured = delta / DT_CONTROL;
+
+        /*static float omega_buffer[16];
         static int idx = 0;
         omega_buffer[idx] = omega_measured;
         idx = (idx + 1) % 16;
+        float omega_avg = 0;
+        for (int i = 0; i < 16; i++)
+            omega_avg += omega_buffer[i];
+        omega_filtered = omega_avg / 16.0f;*/
+
+        // Inicializar explicitamente
+        static float omega_buffer[16] = {0}; // ← Força zero inicial
+        static int idx = 0;
+        static bool buffer_full = false;
+
+        omega_buffer[idx] = omega_measured;
+        idx = (idx + 1) % 16;
+
+        // Após 16 iterações, usar a média
+        if (!buffer_full && idx == 0)
+            buffer_full = true;
+
         float omega_avg = 0;
         for (int i = 0; i < 16; i++)
             omega_avg += omega_buffer[i];
@@ -191,8 +171,18 @@ void focTask(void *pvParameters)
         iq_ref = iq_imp;
         
 
-        motor.vd = compute_pi(&pi_id, (id_ref - motor.id));
-        motor.vq = compute_pi(&pi_iq, (iq_ref - motor.iq));
+       // motor.vd = compute_pi(&pi_id, (id_ref - motor.id));
+       //motor.vq = compute_pi(&pi_iq, (iq_ref - motor.iq));
+
+        if (xSemaphoreTake(motorMutex, pdMS_TO_TICKS(1)))
+        {
+            float id_ref_copy = id_ref;
+            float iq_ref_copy = iq_ref;
+            xSemaphoreGive(motorMutex);
+
+            motor.vd = compute_pi(&pi_id, (id_ref_copy - motor.id));
+            motor.vq = compute_pi(&pi_iq, (iq_ref_copy - motor.iq));
+        }
 
         inverse_park_clarke(&motor, sin_t, cos_t);
         apply_svpwm(&motor);
@@ -283,7 +273,14 @@ void setup()
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
 
+    //motorMutex = xSemaphoreCreateMutex();
     motorMutex = xSemaphoreCreateMutex();
+    if (motorMutex == NULL)
+    {
+        Serial.println("ERRO: Falha ao criar mutex!");
+        while (1)
+            ; // Halt
+    }
 
     xTaskCreatePinnedToCore(calibrationTask, "Calib Task", 4096, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(focTask, "FOC Task", 4096, NULL, 2, NULL, 1);

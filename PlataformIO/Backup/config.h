@@ -14,8 +14,6 @@
 #define SDA_PIN 25
 #define SCL_PIN 26
 #define OC_ADJ 13
-
-
 #define DRIVER_FAULT_PIN 34 // Pino para leitura de falhas do driver
 
 // Parâmetros do Sistema

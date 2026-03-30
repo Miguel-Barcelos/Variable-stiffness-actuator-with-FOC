@@ -86,7 +86,6 @@ void focTask(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     float theta_e_prev = 0.0f; // Variável para ângulo elétrico anterior
-    //float theta_m_prev = 0.0f; // Variável para ângulo mecânico anterior
     float omega_filtered = 0.0f; // Variável para velocidade filtrada
 
     while (1) // Loop principal de controle FOC
@@ -111,35 +110,15 @@ void focTask(void *pvParameters)
 
         // Cálculo da variação do ângulo elétrico
         float delta = thetaElec - theta_e_prev; 
-        if (delta > PI)     delta -= 2.0f * PI;
-        if (delta < -PI)    delta += 2.0f * PI;
+        if (delta > PI)
+            delta -= 2.0f * PI;
+        if (delta < -PI)
+            delta += 2.0f * PI;
 
 
-        //const float DT_CONTROL = 0.001f; // 1ms = 1000Hz
+        const float DT_CONTROL = 0.001f; // 1ms = 1000Hz
 
-        //float omegaMeasured = delta / DT_CONTROL; // Velocidade instantânea
-        
-        // Cálculo da variação do ângulo MECÂNICO
-        /*float delta_m = thetaMec - theta_m_prev;
-        if (delta_m > PI)
-            delta_m -= 2.0f * PI;
-        if (delta_m < -PI)
-            delta_m += 2.0f * PI;
-            */
-
-        // const float DT_CONTROL = 0.001f; // 1ms = 1000Hz
-        //  Substitua o DT_CONTROL estático por isto:
-        static uint32_t last_time = esp_timer_get_time();
-        uint32_t now = esp_timer_get_time();
-        float dt = (now - last_time) / 1000000.0f; // dt em segundos reais
-        last_time = now;
-
-        if (dt <= 0.0f)
-            dt = 0.001f; // Proteção contra divisão por zero
-
-        float omegaMeasured = delta / dt;
-
-        //float omegaMeasured = delta_m / DT_CONTROL; // Velocidade instantânea
+        float omegaMeasured = delta / DT_CONTROL; // Velocidade instantânea
 
         // Inicializar explicitamente
         static float omega_buffer[16] = {0}; // Força zero inicial
@@ -160,7 +139,6 @@ void focTask(void *pvParameters)
         omega_filtered = omega_avg / 16.0f;
 
         theta_e_prev = thetaElec;
-        //theta_m_prev = thetaMec;
 
         // Leitura de correntes 
         float ia = (analogRead(IA_PIN) - 2048.0f) * 0.80488f / 1000.0f;

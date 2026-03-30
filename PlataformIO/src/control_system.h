@@ -56,10 +56,10 @@ extern VirtualImpedance molaVirtual;
 // ========= VALORES PADRÃO PARA CONTROLADORES E IMPEDÂNCIA =========
 
 // { Kp, Ki, erro_integrado, limite_saida }
-#define PI_CONTROLLER_DEFAULT {1.0f, 0.3f, 0.0f, 12.0f}
+#define PI_CONTROLLER_DEFAULT {2.0f, 0.3f, 0.0f, 12.0f}
 
 // { K, B, thetaDesired }
-#define VIRTUAL_IMPEDANCE_DEFAULT {2.0f, 0.0f, 0.0f}
+#define VIRTUAL_IMPEDANCE_DEFAULT {1.0f, 0.0f, 0.0f}
 
 #define CURRENT_LIMIT_DEFAULT 2.0f  // Limite de corrente de torque(A)
 #define VOLTAGE_LIMIT_DEFAULT 12.0f // Limite de tensão de referência(V)

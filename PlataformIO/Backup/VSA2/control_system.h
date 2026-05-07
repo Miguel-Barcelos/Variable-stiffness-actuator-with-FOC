@@ -56,7 +56,7 @@ extern VirtualImpedance molaVirtual;
 // ========= VALORES PADRÃO PARA CONTROLADORES E IMPEDÂNCIA =========
 
 // { Kp, Ki, erro_integrado, limite_saida }
-#define PI_CONTROLLER_DEFAULT {1.7f, 0.3f, 0.0f, 12.0f}
+#define PI_CONTROLLER_DEFAULT {2.0f, 0.3f, 0.0f, 12.0f}
 
 // { K, B, thetaDesired }
 #define VIRTUAL_IMPEDANCE_DEFAULT {2.0f, 0.0f, 0.0f}

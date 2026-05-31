@@ -3,7 +3,7 @@
 
 Este repositório contém a base de dados experimentais, os scripts e arquivos de desenvolvimento de um controle de impedância ativa aplicado a atuadores elétricos com Controle Orientado a Campo. 
 
-Este trabalho foi submetido e aceito como Trabalho de Conclusão de Curso para o Curso de Engenharia de Controle e Automação no Instituto Federal Fluminense. Disponível em: DOI: 10.13140/RG.2.2.10687.47526
+Este trabalho foi submetido e aceito como Trabalho de Conclusão de Curso para o Curso de Engenharia de Controle e Automação no Instituto Federal Fluminense. Disponível em: DOI: 10.13140/RG.2.2.10687.47526 https://www.researchgate.net/publication/404936282_Controle_de_impedancia_ativa_aplicado_a_atuadores_eletricos_com_Controle_Orientado_a_Campo_FOC?channel=doi&linkId=6a089f97e93d461915964204&showFulltext=true
 
 
 
